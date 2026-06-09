@@ -6,7 +6,7 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const routes = require('./routes');
 
-const PORT = process.env.PORT || 5000;
+const PORT = 5000;
 const HOST = '0.0.0.0';
 
 const app = express();

@@ -1,15 +1,29 @@
-const Database = require('better-sqlite3');
+let Database;
+try {
+  Database = require('better-sqlite3');
+} catch (e) {
+  console.warn('[db] better-sqlite3 unavailable, logging disabled:', e.message);
+}
+
 const path = require('path');
 
 const DB_PATH = path.join(__dirname, '..', 'router.db');
 
 let db;
+let dbAvailable = false;
 
 function getDb() {
+  if (!Database) return null;
   if (!db) {
-    db = new Database(DB_PATH);
-    db.pragma('journal_mode = WAL');
-    initSchema();
+    try {
+      db = new Database(DB_PATH);
+      db.pragma('journal_mode = WAL');
+      initSchema();
+      dbAvailable = true;
+    } catch (e) {
+      console.warn('[db] Failed to open database:', e.message);
+      db = null;
+    }
   }
   return db;
 }
@@ -29,22 +43,33 @@ function initSchema() {
 }
 
 function logRequest({ provider, model, promptTokens, completionTokens, status }) {
-  const database = getDb();
-  const stmt = database.prepare(`
-    INSERT INTO request_log (provider, model, prompt_tokens, completion_tokens, status)
-    VALUES (?, ?, ?, ?, ?)
-  `);
-  stmt.run(provider, model || null, promptTokens || null, completionTokens || null, status || 200);
+  try {
+    const database = getDb();
+    if (!database) return;
+    const stmt = database.prepare(`
+      INSERT INTO request_log (provider, model, prompt_tokens, completion_tokens, status)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+    stmt.run(provider, model || null, promptTokens || null, completionTokens || null, status || 200);
+  } catch (e) {
+    console.warn('[db] logRequest failed:', e.message);
+  }
 }
 
 function getStats() {
-  const database = getDb();
-  return database.prepare(`
-    SELECT provider, COUNT(*) as total, AVG(status) as avg_status
-    FROM request_log
-    GROUP BY provider
-    ORDER BY total DESC
-  `).all();
+  try {
+    const database = getDb();
+    if (!database) return [];
+    return database.prepare(`
+      SELECT provider, COUNT(*) as total, AVG(status) as avg_status
+      FROM request_log
+      GROUP BY provider
+      ORDER BY total DESC
+    `).all();
+  } catch (e) {
+    console.warn('[db] getStats failed:', e.message);
+    return [];
+  }
 }
 
 module.exports = { getDb, logRequest, getStats };
